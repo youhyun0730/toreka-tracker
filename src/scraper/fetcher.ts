@@ -139,20 +139,29 @@ export async function fetchPage(url: string, retries = 3): Promise<string> {
 }
 
 /**
- * Fetch multiple pages in parallel
+ * Fetch multiple pages sequentially (to avoid memory/timeout issues on low-spec servers)
  */
 export async function fetchPages(urls: string[]): Promise<string[]> {
-  logger.info(`Fetching ${urls.length} pages in parallel`);
+  logger.info(`Fetching ${urls.length} pages sequentially`);
+
+  const results: string[] = [];
 
   try {
-    const results = await Promise.all(
-      urls.map(url => fetchPage(url))
-    );
+    for (let i = 0; i < urls.length; i++) {
+      logger.debug(`Fetching page ${i + 1}/${urls.length}: ${urls[i]}`);
+      const html = await fetchPage(urls[i]);
+      results.push(html);
+
+      // Small delay between fetches to reduce load
+      if (i < urls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
 
     logger.info(`Successfully fetched all ${urls.length} pages`);
     return results;
   } catch (error) {
-    logger.error('Error fetching pages in parallel', { error });
+    logger.error('Error fetching pages sequentially', { error });
     throw error;
   }
 }
