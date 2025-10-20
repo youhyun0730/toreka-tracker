@@ -15,9 +15,11 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
     try {
       const $container = $(commentContainer);
 
-      // Extract comment ID from wpd-comm-{id}_0
+      // Extract comment ID from wpd-comm-{id}_{parentId}
+      // Format: wpd-comm-{id}_0 for top-level comments
+      //         wpd-comm-{id}_{parentId} for replies
       const containerId = $container.attr('id') || '';
-      const idMatch = containerId.match(/wpd-comm-(\d+)_0/);
+      const idMatch = containerId.match(/wpd-comm-(\d+)_(\d+)/);
 
       if (!idMatch) {
         logger.debug(`Skipping container with invalid ID: ${containerId}`);
@@ -25,6 +27,7 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
       }
 
       const commentId = parseInt(idMatch[1], 10);
+      const parentIdFromContainer = parseInt(idMatch[2], 10);
 
       // Find the actual comment div
       const $commentDiv = $container.find(`div#comment-${commentId}`);
@@ -48,18 +51,9 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
       // Extract timestamp
       const timestamp = $commentDiv.find('.wpd-comment-date').first().text().trim();
 
-      // Check if this is a reply
-      const isReply = $container.hasClass('wpd-reply');
-      let parentId: number | null = null;
-
-      if (isReply) {
-        // Try to find parent comment ID from the structure
-        // wpd-comm-{id}_{parentId} format
-        const parentMatch = containerId.match(/wpd-comm-\d+_(\d+)/);
-        if (parentMatch && parentMatch[1] !== '0') {
-          parentId = parseInt(parentMatch[1], 10);
-        }
-      }
+      // Determine if this is a reply based on parent ID
+      // parentIdFromContainer is 0 for top-level comments, non-zero for replies
+      const parentId = parentIdFromContainer !== 0 ? parentIdFromContainer : null;
 
       // Build comment URL
       const cleanBaseUrl = baseUrl.replace(/\/$/, '');
