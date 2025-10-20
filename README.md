@@ -115,7 +115,7 @@ ssh -i ~/.ssh/your-key ubuntu@YOUR_VM_IP
 
 ```bash
 # プロジェクトのクローン（またはファイル転送）
-git clone YOUR_REPO_URL toreka-tracker
+git clone https://github.com/youhyun0730/toreka-tracker toreka-tracker
 cd toreka-tracker
 
 # 環境変数の設定

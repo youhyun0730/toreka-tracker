@@ -5,6 +5,7 @@ import { initDatabase, closeDatabase } from './database/db';
 import { getNewComments, insertComments, getCommentCount } from './database/repository';
 import { scrapeComments } from './scraper';
 import { sendNotifications } from './notifier/webhook';
+import { closeBrowser } from './scraper/fetcher';
 
 // Load environment variables from .env file if in development
 if (process.env.NODE_ENV !== 'production') {
@@ -119,10 +120,11 @@ async function main(): Promise<void> {
  * Graceful shutdown handler
  */
 function setupGracefulShutdown(): void {
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down gracefully...`);
 
     try {
+      await closeBrowser();
       closeDatabase();
       logger.info('Cleanup completed');
       process.exit(0);
@@ -136,14 +138,16 @@ function setupGracefulShutdown(): void {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
   // Handle uncaught errors
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', async (error) => {
     logger.error('Uncaught exception', { error });
+    await closeBrowser();
     closeDatabase();
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason) => {
+  process.on('unhandledRejection', async (reason) => {
     logger.error('Unhandled promise rejection', { reason });
+    await closeBrowser();
     closeDatabase();
     process.exit(1);
   });

@@ -1,5 +1,103 @@
-import axios, { AxiosError } from 'axios';
+import puppeteer, { Browser } from 'puppeteer';
 import { logger } from '../utils/logger';
+
+/**
+ * Close the browser instance (no-op now, kept for compatibility)
+ */
+export async function closeBrowser(): Promise<void> {
+  // Browser is now closed after each fetch, so this is a no-op
+  logger.debug('closeBrowser called (no-op in optimized mode)');
+}
+
+/**
+ * Fetch HTML content using Puppeteer (renders JavaScript)
+ * Opens and closes browser for each fetch to minimize memory usage
+ */
+async function fetchPageWithPuppeteer(url: string): Promise<string> {
+  let browser: Browser | null = null;
+
+  try {
+    logger.debug('Launching temporary browser instance');
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-first-run',
+        '--single-process', // Single process mode saves memory
+        '--disable-features=site-per-process'
+      ]
+    });
+
+    const page = await browser.newPage();
+
+    // Set viewport to minimal size to save memory
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Block unnecessary resources to save bandwidth and memory
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const resourceType = request.resourceType();
+      // Block images, fonts, stylesheets to save memory
+      if (['image', 'font', 'media'].includes(resourceType)) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+
+    // Navigate to page with minimal waiting
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded', // Faster than networkidle0
+      timeout: 30000
+    });
+
+    // Wait for comments to load
+    await page.waitForSelector('div[id^="wpd-comm-"]', { timeout: 10000 });
+
+    // Click all "View Replies" buttons to expand nested comments
+    logger.debug('Expanding all reply comments...');
+
+    const replyButtons = await page.$$('div.wpd-toggle.wpd_not_clicked');
+    logger.debug(`Found ${replyButtons.length} collapsed reply sections`);
+
+    // Click buttons in batches to reduce memory spikes
+    for (const button of replyButtons) {
+      try {
+        await button.click();
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        logger.debug('Failed to click reply button, continuing...');
+      }
+    }
+
+    // Short wait for content to load
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Get the HTML content
+    const html = await page.content();
+
+    return html;
+  } finally {
+    // Always close browser to free memory
+    if (browser) {
+      await browser.close();
+      logger.debug('Browser instance closed, memory freed');
+    }
+  }
+}
 
 /**
  * Fetch HTML content from a URL with retry logic
@@ -7,26 +105,20 @@ import { logger } from '../utils/logger';
 export async function fetchPage(url: string, retries = 3): Promise<string> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      logger.debug(`Fetching page: ${url} (attempt ${attempt}/${retries})`);
+      logger.debug(`Fetching page with Puppeteer: ${url} (attempt ${attempt}/${retries})`);
 
-      const response = await axios.get(url, {
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
+      const html = await fetchPageWithPuppeteer(url);
 
       logger.debug(`Successfully fetched page: ${url}`);
-      return response.data;
+      return html;
     } catch (error) {
-      const axiosError = error as AxiosError;
+      const err = error as Error;
 
       if (attempt === retries) {
         logger.error(`Failed to fetch page after ${retries} attempts: ${url}`, {
-          error: axiosError.message,
-          status: axiosError.response?.status
+          error: err.message
         });
-        throw new Error(`Failed to fetch ${url}: ${axiosError.message}`);
+        throw new Error(`Failed to fetch ${url}: ${err.message}`);
       }
 
       // Exponential backoff

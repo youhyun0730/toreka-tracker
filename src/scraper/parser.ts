@@ -9,9 +9,23 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
   const $ = cheerio.load(html);
   const comments: ScrapedComment[] = [];
 
-  // Find all comment containers
+  // Find all comment containers (including nested replies in ul.children)
   // Structure: div#wpd-comm-{id}_0 > div.wpd-comment-wrap > div#comment-{id}
-  $('div[id^="wpd-comm-"]').each((_, commentContainer) => {
+  // Reply structure: ul.children > li > div#wpd-comm-{id}_{parentId}
+  // Use descendant selector to capture ALL comment divs regardless of nesting
+  // 🔍 DEBUG: Check for reply comments in HTML
+  const bodyHtml = $('body').html() || '';
+  const allWpdCommIds = bodyHtml.match(/id="wpd-comm-\d+_\d+"/g) || [];
+  const replyIds = allWpdCommIds.filter(id => !id.includes('_0"'));
+  logger.debug(`HTML contains ${allWpdCommIds.length} wpd-comm IDs, ${replyIds.length} are replies`);
+  if (replyIds.length > 0) {
+    logger.debug('Sample reply IDs found in HTML:', replyIds.slice(0, 5));
+  }
+
+  const allCommentContainers = $('div[id^="wpd-comm-"]');
+  logger.debug(`Found ${allCommentContainers.length} comment containers on page ${pageNumber}`);
+
+  allCommentContainers.each((_, commentContainer) => {
     try {
       const $container = $(commentContainer);
 
@@ -25,6 +39,10 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
         logger.debug(`Skipping container with invalid ID: ${containerId}`);
         return;
       }
+
+      // 🔍 DEBUG: Log all container IDs to verify we're finding replies
+      const isHidden = $container.css('display') === 'none' || $container.attr('style')?.includes('display: none');
+      logger.debug(`Processing container: ${containerId}${isHidden ? ' [HIDDEN]' : ''}`);
 
       const commentId = parseInt(idMatch[1], 10);
       const parentIdFromContainer = parseInt(idMatch[2], 10);
@@ -70,14 +88,22 @@ export function parseComments(html: string, pageNumber: number, baseUrl: string)
       };
 
       comments.push(comment);
-      logger.debug(`Parsed comment ${commentId}`, { author, isReply: !!parentId });
+
+      if (parentId) {
+        logger.debug(`Parsed REPLY comment ${commentId} (parent: ${parentId})`, { author });
+      } else {
+        logger.debug(`Parsed top-level comment ${commentId}`, { author });
+      }
 
     } catch (error) {
       logger.error('Error parsing comment', { error });
     }
   });
 
-  logger.info(`Parsed ${comments.length} comments from page ${pageNumber}`);
+  const topLevelCount = comments.filter(c => !c.parentId).length;
+  const replyCount = comments.filter(c => c.parentId).length;
+
+  logger.info(`Parsed ${comments.length} comments from page ${pageNumber} (${topLevelCount} top-level, ${replyCount} replies)`);
   return comments;
 }
 

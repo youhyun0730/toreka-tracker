@@ -1,8 +1,5 @@
 # Multi-stage build for smaller image size
-FROM node:20-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -20,10 +17,25 @@ COPY src ./src
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine
+FROM node:20-slim
 
-# Install runtime dependencies for better-sqlite3
-RUN apk add --no-cache sqlite
+# Install Puppeteer dependencies (Chromium + Japanese fonts)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-kacst \
+    fonts-freefont-ttf \
+    libxss1 \
+    libxtst6 \
+    ca-certificates \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Puppeteer to use installed Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
@@ -44,8 +56,7 @@ ENV NODE_ENV=production
 ENV DB_PATH=/app/data/comments.db
 
 # Run as non-root user
-RUN addgroup -g 1001 appuser && \
-    adduser -D -u 1001 -G appuser appuser && \
+RUN useradd -m -u 1001 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
