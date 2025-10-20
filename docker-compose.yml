@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  toreka-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: toreka-tracker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - TARGET_URL=${TARGET_URL:-https://gamenv.net/tc/yodobashi/}
+      - SCRAPE_INTERVAL_MINUTES=${SCRAPE_INTERVAL_MINUTES:-1}
+      - DB_PATH=/app/data/comments.db
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Persist database
+      - ./data:/app/data
+    # Health check (optional)
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
