@@ -61,11 +61,11 @@ async function fetchPageWithPuppeteer(url: string): Promise<string> {
     // Navigate to page with minimal waiting
     await page.goto(url, {
       waitUntil: 'domcontentloaded', // Faster than networkidle0
-      timeout: 30000
+      timeout: 60000 // Increase timeout to 60 seconds for slow servers
     });
 
     // Wait for comments to load
-    await page.waitForSelector('div[id^="wpd-comm-"]', { timeout: 10000 });
+    await page.waitForSelector('div[id^="wpd-comm-"]', { timeout: 20000 });
 
     // Click all "View Replies" buttons to expand nested comments
     logger.debug('Expanding all reply comments...');
