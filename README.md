@@ -89,7 +89,7 @@ docker-compose down
 #### 2. VM への接続
 
 ```bash
-ssh -i ~/.ssh/your-key ubuntu@YOUR_VM_IP
+ssh -i .ssh/ssh-key-2025-10-20.key ubuntu@161.33.204.135
 ```
 
 #### 3. Docker のインストール

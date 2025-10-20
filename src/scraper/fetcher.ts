@@ -36,8 +36,15 @@ async function fetchPageWithPuppeteer(url: string): Promise<string> {
         '--mute-audio',
         '--no-first-run',
         '--single-process', // Single process mode saves memory
-        '--disable-features=site-per-process'
-      ]
+        '--disable-features=site-per-process',
+        // Fix DBus errors
+        '--disable-features=AudioServiceOutOfProcess',
+        '--disable-dbus',
+        '--no-service-autorun',
+        '--password-store=basic',
+        '--use-mock-keychain'
+      ],
+      executablePath: '/usr/bin/chromium'
     });
 
     const page = await browser.newPage();
