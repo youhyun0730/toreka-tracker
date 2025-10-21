@@ -35,7 +35,7 @@ export function detectLatestPageNumber(html: string): number {
 }
 
 /**
- * Generate URLs for the latest two pages
+ * Generate URL for the latest page only
  */
 export function generatePageUrls(baseUrl: string, latestPageNumber: number): string[] {
   // Remove trailing slash
@@ -43,14 +43,9 @@ export function generatePageUrls(baseUrl: string, latestPageNumber: number): str
 
   const urls: string[] = [];
 
-  // Latest page
+  // Latest page only (no previous page to save processing time)
   urls.push(`${cleanBaseUrl}/comment-page-${latestPageNumber}/`);
 
-  // Previous page (if exists)
-  if (latestPageNumber > 1) {
-    urls.push(`${cleanBaseUrl}/comment-page-${latestPageNumber - 1}/`);
-  }
-
-  logger.debug(`Generated page URLs:`, urls);
+  logger.debug(`Generated page URL:`, urls);
   return urls;
 }

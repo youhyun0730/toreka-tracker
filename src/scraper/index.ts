@@ -18,16 +18,16 @@ export async function scrapeComments(targetUrl: string): Promise<ScrapedComment[
 
     logger.info(`Latest page number detected: ${latestPageNumber}`);
 
-    // Step 2: Generate URLs for latest two pages
+    // Step 2: Generate URL for latest page only
     const pageUrls = generatePageUrls(targetUrl, latestPageNumber);
 
-    // Step 3: Fetch all pages in parallel
+    // Step 3: Fetch the latest page only
     const htmlPages = await fetchPages(pageUrls);
 
-    // Step 4: Parse comments from all pages
-    const pagesWithNumbers = htmlPages.map((html, index) => {
-      // URLs are ordered: [latest, latest-1]
-      const pageNumber = latestPageNumber - index;
+    // Step 4: Parse comments from the latest page
+    const pagesWithNumbers = htmlPages.map((html) => {
+      // Only the latest page
+      const pageNumber = latestPageNumber;
       return { html, pageNumber };
     });
 
