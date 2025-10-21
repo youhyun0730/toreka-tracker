@@ -35,14 +35,9 @@ function createCommentEmbed(comment: ScrapedComment): DiscordEmbed {
         inline: true
       },
       {
-        name: '📄 ページ',
-        value: comment.pageNumber.toString(),
-        inline: true
-      },
-      {
         name: '🕐 投稿時刻',
         value: comment.timestamp,
-        inline: false
+        inline: true
       }
     ],
     url: comment.url,

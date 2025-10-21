@@ -1,53 +1,68 @@
 import puppeteer, { Browser } from 'puppeteer';
 import { logger } from '../utils/logger';
 
+let sharedBrowser: Browser | null = null;
+
 /**
- * Close the browser instance (no-op now, kept for compatibility)
+ * Get or create a persistent browser instance
+ */
+async function getBrowser(): Promise<Browser> {
+  if (sharedBrowser && sharedBrowser.connected) {
+    return sharedBrowser;
+  }
+
+  logger.info('Launching persistent browser instance');
+  sharedBrowser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-first-run',
+      '--single-process',
+      '--disable-features=site-per-process',
+      '--disable-features=AudioServiceOutOfProcess',
+      '--disable-dbus',
+      '--no-service-autorun',
+      '--password-store=basic',
+      '--use-mock-keychain'
+    ],
+    executablePath: '/usr/bin/chromium'
+  });
+
+  return sharedBrowser;
+}
+
+/**
+ * Close the persistent browser instance
  */
 export async function closeBrowser(): Promise<void> {
-  // Browser is now closed after each fetch, so this is a no-op
-  logger.debug('closeBrowser called (no-op in optimized mode)');
+  if (sharedBrowser) {
+    await sharedBrowser.close();
+    sharedBrowser = null;
+    logger.info('Browser instance closed');
+  }
 }
 
 /**
  * Fetch HTML content using Puppeteer (renders JavaScript)
- * Opens and closes browser for each fetch to minimize memory usage
+ * Uses persistent browser instance for better performance
  */
 async function fetchPageWithPuppeteer(url: string): Promise<string> {
-  let browser: Browser | null = null;
+  const browser = await getBrowser();
+  const page = await browser.newPage();
 
   try {
-    logger.debug('Launching temporary browser instance');
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--disable-translate',
-        '--hide-scrollbars',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--no-first-run',
-        '--single-process', // Single process mode saves memory
-        '--disable-features=site-per-process',
-        // Fix DBus errors
-        '--disable-features=AudioServiceOutOfProcess',
-        '--disable-dbus',
-        '--no-service-autorun',
-        '--password-store=basic',
-        '--use-mock-keychain'
-      ],
-      executablePath: '/usr/bin/chromium'
-    });
-
-    const page = await browser.newPage();
 
     // Set viewport to minimal size to save memory
     await page.setViewport({ width: 1280, height: 720 });
@@ -101,11 +116,8 @@ async function fetchPageWithPuppeteer(url: string): Promise<string> {
 
     return html;
   } finally {
-    // Always close browser to free memory
-    if (browser) {
-      await browser.close();
-      logger.debug('Browser instance closed, memory freed');
-    }
+    // Close only the page, keep browser alive
+    await page.close();
   }
 }
 
