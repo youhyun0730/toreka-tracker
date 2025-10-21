@@ -80,18 +80,21 @@ async function fetchPageWithPuppeteer(url: string): Promise<string> {
     const replyButtons = await page.$$('div.wpd-toggle.wpd_not_clicked');
     logger.debug(`Found ${replyButtons.length} collapsed reply sections`);
 
-    // Click buttons in batches to reduce memory spikes
-    for (const button of replyButtons) {
-      try {
-        await button.click();
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (error) {
-        logger.debug('Failed to click reply button, continuing...');
+    if (replyButtons.length > 0) {
+      // Click all buttons quickly without waiting
+      for (const button of replyButtons) {
+        try {
+          await button.click();
+        } catch (error) {
+          logger.debug('Failed to click reply button, continuing...');
+        }
       }
-    }
 
-    // Short wait for content to load
-    await new Promise(resolve => setTimeout(resolve, 800));
+      // Wait for network to be idle after all clicks
+      logger.debug('Waiting for replies to load...');
+      await page.waitForNetworkIdle({ timeout: 30000, idleTime: 1000 });
+      logger.debug('All replies loaded');
+    }
 
     // Get the HTML content
     const html = await page.content();
